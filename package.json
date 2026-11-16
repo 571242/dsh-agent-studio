@@ -1,0 +1,23 @@
+{
+  "name": "dsh-agent-studio",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "DSH 项目工作台：单对话指挥官、原生双轨委派与角色模型路由",
+  "main": "./plugin/index.js",
+  "exports": { ".": "./plugin/index.js", "./client": "./plugin/client.js", "./package.json": "./package.json" },
+  "files": ["plugin", "bin", "skills", "cordis.patch.yml", "README.md", "SOURCES.md", "SKILLS.md"],
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "inject": ["@deepseek-ai/dsh-client-ui-slots", "@deepseek-ai/dsh-client-ui-session", "@deepseek-ai/dsh-client-ui-workspace", "@deepseek-ai/dsh-client-ui-conversation"]
+    }
+  },
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node bin/start.mjs",
+    "test": "node --test tests/studio.test.mjs plugin/test/*.test.mjs",
+    "check": "node --check plugin/index.js && node --check plugin/core.js && node --check plugin/client.js"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "tasks": [
+    {
+      "id": "search",
+      "title": "实现本地列表搜索",
+      "description": "用户输入关键词后筛选本地列表，空关键词显示全部。",
+      "dependsOn": [],
+      "scope": ["src/search", "tests/search.test.js"],
+      "acceptance": ["空关键词显示全部条目", "搜索忽略字母大小写", "有匹配和无匹配均有测试"]
+    },
+    {
+      "id": "guide",
+      "title": "编写用户操作说明",
+      "description": "根据项目目标编写打开项目和使用搜索的简短说明。",
+      "dependsOn": [],
+      "scope": ["docs/usage.md"],
+      "acceptance": ["说明包含真实的启动命令", "说明包含搜索和清空搜索示例"]
+    },
+    {
+      "id": "integration",
+      "title": "验收完整搜索流程",
+      "description": "基于已有搜索模块增加端到端测试；如需改实现，向主 Agent 报告。",
+      "dependsOn": ["search", "guide"],
+      "scope": ["tests/search-flow.test.js"],
+      "acceptance": ["运行项目并完成搜索、无结果、清空三条路径", "记录测试命令和实际结果"]
+    }
+  ]
+}
