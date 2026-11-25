@@ -502,6 +502,12 @@ test('显式路由选择、模型覆盖优先且不抹其他配置、reviewer �
   const rv = run(['dispatch', '--task', 'r', '--role', 'reviewer']).packets[0];
   assert.deepEqual([rv.execution.provider, rv.execution.model, rv.execution.role], ['workbuddy-subscription', 'deepseek-v4.1-flash', 'reviewer']);
   assert.equal(rv.task.role, 'reviewer');
+  run(['release', 'v', '--note', '已停止']);
+  run(['reopen', 'v', '--reason', '重新检查']);
+  const redispatched = run(['dispatch', '--task', 'v']).packets[0];
+  assert.equal(redispatched.task.route, 'visual');
+  assert.equal(redispatched.execution.route, 'visual');
+  assert.equal(redispatched.execution.actual.status, 'unverified');
 });
 
 test('Team 请求路由与继承/实际模型分离，subagent 显式路由及 reviewer 模式覆盖保留', t => {
@@ -519,14 +525,14 @@ test('Team 请求路由与继承/实际模型分离，subagent 显式路由及 r
     provider: 'requested-provider', model: 'requested-model', reasoningEffort: 'xhigh', skills: ['ponytail'], mode: 'teammate',
   });
   assert.deepEqual(team.execution.effective, {
-    tool: 'spawn_teammate', routing: 'inherit-parent', provider: null, model: null, reasoningEffort: null,
+    tool: 'subagent', routing: 'inherit-parent', provider: null, model: null, reasoningEffort: null,
   });
   const unknown = { status: 'unverified', provider: null, model: null, reasoningEffort: null };
   assert.deepEqual(team.execution.actual, unknown);
   assert.equal(team.task.modelRouteKind, 'requested');
   assert.equal(team.task.modelRoute, 'requested-provider/requested-model');
   assert.deepEqual(run(['show', 'team']).execution, team.execution);
-  for (const text of ['spawn_teammate', 'name/description/prompt/context', '没有 provider/model/reasoningEffort 参数', 'actual 尚未证实', '不能当作 LLM provider', 'call skill']) assert.ok(team.prompt.includes(text), text);
+  for (const text of ['subagent', 'send_message', 'name/description/prompt', '没有 provider/model/reasoningEffort 参数', 'actual 尚未证实', '不能当作 LLM provider', 'call skill']) assert.ok(team.prompt.includes(text), text);
   assert.ok(team.execution.warnings.some(warning => warning.includes('请求路由未应用')));
   assert.ok(dispatched.next.includes('Team') && dispatched.next.includes('不传 provider/model/reasoningEffort'));
   assert.equal(team.prompt.includes('按 execution 真实调用'), false);

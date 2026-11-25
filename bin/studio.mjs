@@ -108,7 +108,7 @@ upgrade TARGET --confirm-stopped      停止所有写入后升级已知原版项
 CLI 只管理状态；主 Agent 调用宿主原生子 Agent 执行与验收。
 `;
 
-const originalCliHashes = new Set(['91c404ef83db910fb5080098dd2b1a723076b08711533249d1cde85dd5b20dfd', 'd23c689a6bcaeb02b2ce30b2c345cca7bc4b4de0483ab266f917657d2349e9d5', 'f8ad29277bec0a5f2ca03101c8e38872a84447fe68cfb805dc0e5999928b3d4a', '9873ff91a774ce8a933d549761871bf36261135c72bcf83adec531df6998085a']);
+const originalCliHashes = new Set(['91c404ef83db910fb5080098dd2b1a723076b08711533249d1cde85dd5b20dfd', 'd23c689a6bcaeb02b2ce30b2c345cca7bc4b4de0483ab266f917657d2349e9d5', 'f8ad29277bec0a5f2ca03101c8e38872a84447fe68cfb805dc0e5999928b3d4a', '9873ff91a774ce8a933d549761871bf36261135c72bcf83adec531df6998085a', '6b59a1afe8f095dede7bea5abe08a3ec4226daa52f9d7de1daa1836c6954b611', '6c7ee7a1837aefc296e03fdd2b5fdfc60fb0bdc73529002abd37527f027c6cc3']);
 const digest = data => createHash('sha256').update(data).digest('hex');
 const delay = new Int32Array(new SharedArrayBuffer(4));
 const wait = ms => Atomics.wait(delay, 0, 0, ms);
@@ -366,7 +366,7 @@ function buildExecution(config, task, opt, route) {
   const teammate = picks.mode === 'teammate';
   const requested = { ...picks, skills: [...picks.skills] };
   const effective = teammate
-    ? { tool: 'spawn_teammate', routing: 'inherit-parent', provider: null, model: null, reasoningEffort: null }
+    ? { tool: 'subagent', routing: 'inherit-parent', provider: null, model: null, reasoningEffort: null }
     : { tool: 'subagent', routing: 'explicit-request', provider: picks.provider, model: picks.model, reasoningEffort: picks.reasoningEffort };
   if (teammate) risks.push('Team 不支持成员级 model/reasoningEffort 参数；请求路由未应用，实际继承父会话。spawn 等 provider 是传输实现，不是 LLM provider。');
   const risk = opt.risk || task.risk || 'low';
@@ -468,13 +468,14 @@ function runProject(root) {
         if (running.length >= limit) break;
         if (running.some(other => conflict(task, other))) continue;
         // Route: explicit --route, else the task's last dispatched route, else the coding default.
-        const route = opt.route || task.route || 'coding';
+        const route = opt.route || task.route || task.execution?.route || 'coding';
         const execution = buildExecution(config, task, opt, route);
         task.status = 'in_progress'; task.owner = opt.worker || `worker-${task.id}`;
         for (const [key, value] of Object.entries({ worker: opt.worker, mode: opt.mode, role: opt.role, modelRoute: opt.model, risk: opt.risk })) {
           if (value !== undefined) task[key] = value;
         }
         // Preserve the legacy route display as a requested-config alias, not an observed model.
+        task.route = route;
         task.execution = execution;
         task.modelRoute = `${execution.provider}/${execution.model}`;
         task.modelRouteKind = 'requested';
@@ -485,7 +486,7 @@ function runProject(root) {
       emit({ packets: selected.map(task => {
         const ex = task.execution;
         const hostExecution = ex.mode === 'teammate'
-          ? `Team 请求路由仅作记录：requested.provider=${ex.requested.provider}、requested.model=${ex.requested.model}、requested.reasoningEffort=${ex.requested.reasoningEffort}；没有应用到成员级模型选择。调用 spawn_teammate 仅使用 name/description/prompt/context；没有 provider/model/reasoningEffort 参数。effective 为 inherit-parent，实际沿父会话继承，actual 尚未证实；spawn 等传输 provider 不能当作 LLM provider。`
+          ? `Team 请求路由仅作记录：requested.provider=${ex.requested.provider}、requested.model=${ex.requested.model}、requested.reasoningEffort=${ex.requested.reasoningEffort}；没有应用到成员级模型选择。调用原生 subagent 创建持续负责人并用 send_message 续接，仅使用 name/description/prompt；没有 provider/model/reasoningEffort 参数。effective 为 inherit-parent，实际沿父会话继承，actual 尚未证实；spawn 等传输 provider 不能当作 LLM provider。`
           : `调用宿主原生 subagent：provider=${ex.requested.provider}、model=${ex.requested.model}、reasoningEffort=${ex.requested.reasoningEffort}。这些是待宿主应用的请求，CLI 未启动模型，actual 尚未证实。`;
         return {
           task, owner: task.owner, config, execution: ex,

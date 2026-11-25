@@ -490,6 +490,7 @@ test('real API rejects stale revision after a refresh returns an external edit',
   fs.writeFileSync(path.join(root, '.studio', 'state.json'), JSON.stringify({ name: '测试项目', paused: false, tasks: [], inbox: [] }));
   const briefFile = path.join(root, '.studio', 'BRIEF.md');
   fs.writeFileSync(briefFile, 'original');
+  fs.copyFileSync(new URL('../../bin/studio.mjs', import.meta.url), path.join(root, '.studio', 'studio.mjs'));
   const api = createStudioApi({ sessions: { get: () => ({ header: { cwd: root } }) } });
   const ui = workbench({ api });
   await ui.requests.shift().execute();
@@ -859,6 +860,25 @@ test('saving or resetting config clears configDirty allowing project switch with
   await ui.settle();
 
   assert.equal(ui.input('as-root').props.value, 'C');
+});
+
+test('directory picker protects the unsaved brief and clears feedback only on a successful project switch', async () => {
+  const ui = workbench();
+  ui.requests.shift().respond(project('A', 'brief A', 'rev-a'));
+  await ui.settle();
+  ui.click('反馈与交接'); ui.change('as-feedback', '仅项目 A 的反馈');
+  ui.click('项目简报'); ui.change('as-brief', '未保存的简报');
+  ui.setPick('B'); ui.setConfirm(false); ui.click('选择');
+  await ui.settle();
+  assert.equal(ui.confirms.length, 1);
+  assert.equal(ui.requests.length, 0);
+  assert.equal(ui.input('as-brief').props.value, '未保存的简报');
+  ui.setConfirm(true); ui.click('选择'); await ui.settle();
+  ui.requests.shift().respond(project('B', 'brief B', 'rev-b'));
+  await ui.settle();
+  assert.equal(ui.input('as-brief').props.value, 'brief B');
+  ui.click('反馈与交接');
+  assert.equal(ui.input('as-feedback').props.value, '');
 });
 
 test('browsing to the current project root with an unsaved config draft still prompts; cancel preserves draft and root, confirm loads', async () => {

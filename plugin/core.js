@@ -17,6 +17,8 @@ const originalCliHashes = new Set([
   'd23c689a6bcaeb02b2ce30b2c345cca7bc4b4de0483ab266f917657d2349e9d5',
   'f8ad29277bec0a5f2ca03101c8e38872a84447fe68cfb805dc0e5999928b3d4a',
   '9873ff91a774ce8a933d549761871bf36261135c72bcf83adec531df6998085a',
+  '6b59a1afe8f095dede7bea5abe08a3ec4226daa52f9d7de1daa1836c6954b611',
+  '6c7ee7a1837aefc296e03fdd2b5fdfc60fb0bdc73529002abd37527f027c6cc3',
 ]);
 const sha256 = data => createHash('sha256').update(data).digest('hex');
 export const fail = (message, status = 400, code = 'INVALID_REQUEST') => Object.assign(new Error(message), { status, code });
@@ -338,6 +340,9 @@ export function createStudioApi(ctx, { spawn: spawnProcess = spawn, host: hostCo
       return withProject(sessionId, input, async root => {
         const project = await takeSnapshot(root, sessionId);
         if (action === 'load') return project;
+        if (project.initialized && ['config', 'reset-config', 'brief'].includes(action) && project.cliCompatibility !== 'current') {
+          throw fail('项目 CLI 尚未升级或无法验证；请停止所有旧进程，检查或升级项目 CLI 后再保存。', 409, 'CLI_INCOMPATIBLE');
+        }
         if (action === 'config' || action === 'reset-config') {
           if (action === 'reset-config' && body.config !== undefined) throw fail('reset-config 不接受 config 参数');
           const produce = action === 'reset-config'

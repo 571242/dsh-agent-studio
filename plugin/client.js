@@ -146,7 +146,7 @@ window.__ModuleLoader__.load({
       const dirtyNote = configDirty
         ? '\n【注意】工作台表单里有未保存的配置修改，以下不是生效配置；必须先在「角色与路由」点保存（或恢复默认）后才生效，当前生效值仍是下面这份已保存配置。'
         : '';
-      const base = `项目目录：${project.root}（所有项目命令均在此目录执行，不要在其他会话目录运行）\n先读取该项目的 .agents/skills/project-director/SKILL.md 和 .studio/BRIEF.md，再运行 node .studio/studio.mjs resume。你是唯一对话入口与账本记录者，主控零开发、双轨委派、只审结构化回执，使用 DSH 原生子 Agent 分派与独立验收，只有实际验收通过才记为完成。\n【启动先解析】先执行 node .studio/studio.mjs config 读取最新已保存配置，再执行 node .studio/studio.mjs dispatch 生成任务包；严格按任务包里的 packet.config 与 packet.execution 调用真实原生工具，并按 execution.requested.skills 在子代理开场先 call skill 逐个加载，不要凭记忆虚构模型路由或技能。\n【已保存配置】\n${savedConfigSummary(project.config).join('\n')}\n【执行契约】subagent 按 execution.requested 显式传 provider/model/reasoningEffort；Team(teammate) 只传宿主原生支持的 name/description/prompt/context，继承父会话，不传 provider/model/effort，也不要把 spawn 传输 provider 当 LLM 供应商；只有拿到真实 actual 才算已确认实际值，否则保持未核实。${dirtyNote}`;
+      const base = `项目目录：${project.root}（所有项目命令均在此目录执行，不要在其他会话目录运行）\n先读取该项目的 .agents/skills/project-director/SKILL.md 和 .studio/BRIEF.md，再运行 node .studio/studio.mjs resume。你是唯一对话入口与账本记录者，主控零开发、双轨委派、只审结构化回执，使用 DSH 原生子 Agent 分派与独立验收，只有实际验收通过才记为完成。\n【启动先解析】先执行 node .studio/studio.mjs config 读取最新已保存配置，再执行 node .studio/studio.mjs dispatch 生成任务包；严格按任务包里的 packet.config 与 packet.execution 调用真实原生工具，并按 execution.requested.skills 在子代理开场先 call skill 逐个加载，不要凭记忆虚构模型路由或技能。\n【已保存配置】\n${savedConfigSummary(project.config).join('\n')}\n【执行契约】subagent 按 execution.requested 显式传 provider/model/reasoningEffort；Team(teammate) 通过原生 subagent 创建并用 send_message 续接，只传宿主原生支持的 name/description/prompt，继承父会话，不传 provider/model/effort，也不要把 spawn 传输 provider 当 LLM 供应商；只有拿到真实 actual 才算已确认实际值，否则保持未核实。${dirtyNote}`;
       if (kind === 'pause') return `${base}\n请先停止或等完实际 worker，保存当前成果与交接，再通过 pause 命令暂停派工；不要仅修改账本就声称任务进程已停止。`;
       if (kind === 'feedback') return `${base}\n请处理账本中新登记的反馈，先评估影响、更新计划，再执行和验收。`;
       return `${base}\n请开始或继续这个项目，先概括当前进度与下一步；若尚无明确目标，先和我确定首版范围。若项目已暂停，我授权恢复，先运行 resume --continue。不要重复启动还在运行的任务。`;
@@ -317,26 +317,25 @@ window.__ModuleLoader__.load({
         window.addEventListener('focus', refresh);
         return () => { clearInterval(timer); window.removeEventListener('focus', refresh); };
       }, [sessionId, project?.root, project?.initialized, busy, briefDirty, configDirty]);
-      function canDiscardConfig() {
-        if (!configDirty) return true;
-        const confirmFn = typeof window.confirm === 'function' ? window.confirm : (typeof globalThis.confirm === 'function' ? globalThis.confirm : null);
-        return confirmFn ? confirmFn('角色与路由配置有未保存修改，放弃修改并切换项目？') : false;
+      async function openProject(path) {
+        if (!path || !active.current) return;
+        if (briefState.current.value !== briefState.current.saved || feedback.trim() || configDirty) {
+          const confirmFn = typeof window.confirm === 'function' ? window.confirm : globalThis.confirm;
+          if (typeof confirmFn !== 'function' || !confirmFn('当前项目还有未保存修改，放弃草稿并打开目录？')) return;
+        }
+        if (await run('load', { root: path }, '', true, true, true)) setFeedback('');
       }
       async function handleOpen() {
-        if (busy || !root.trim()) return;
-        if (!canDiscardConfig()) return;
-        await run('load', { root: root.trim() }, '', true, true, true);
+        if (!busy) await openProject(root.trim());
       }
       async function browse() {
-        setError('');
+        if (busy) return;
+        setError(''); setBusy(true);
         try {
           const path = await (globalThis.__DSH_DIRECTORY_PICKER__?.pick ? globalThis.__DSH_DIRECTORY_PICKER__.pick() : ctx.uiWorkspace.pickDirectory());
-          if (path && active.current) {
-            if (!canDiscardConfig()) return;
-            setRoot(path);
-            await run('load', { root: path }, '', true, true, true);
-          }
+          await openProject(path);
         } catch (e) { if (active.current) setError(e.message); }
+        finally { if (active.current) setBusy(false); }
       }
       function prepare(kind) {
         if (!cliReady) return;
@@ -376,7 +375,7 @@ window.__ModuleLoader__.load({
             h('div', { className: 'as-row' },
               h('input', { id: 'as-root', value: root, placeholder: '项目文件夹的完整路径', disabled: busy, onChange: e => setRoot(e.target.value) }),
               h(Button, { disabled: busy, onClick: browse }, '选择'),
-              h(Button, { disabled: busy || !root.trim() || briefDirty, onClick: handleOpen }, '打开')),
+              h(Button, { disabled: busy || !root.trim(), onClick: handleOpen }, '打开')),
             h('p', { className: 'as-muted' }, '跟随当前会话；也可以打开其他项目。进度保存在项目内，不需要额外启动程序。')),
           error ? h('p', { className: 'as-error', role: 'alert' }, error) : null,
           notice ? h('p', { className: 'as-notice', role: 'status' }, notice) : null,
@@ -406,7 +405,7 @@ window.__ModuleLoader__.load({
               h('label', { htmlFor: 'as-brief' }, '项目目标、版本范围与决策'),
               h('textarea', { id: 'as-brief', value: brief, rows: 13, onChange: e => { briefState.current.value = e.target.value; briefState.current.edits++; setBrief(e.target.value); }, disabled: busy }),
               h('div', { className: 'as-row' },
-                h(Button, { primary: true, disabled: busy || !briefDirty || !brief.trim(), onClick: () => run('brief', { brief, revision }, '项目简报已保存', true) }, '保存简报'),
+                h(Button, { primary: true, disabled: busy || !cliReady || !briefDirty || !brief.trim(), onClick: () => run('brief', { brief, revision }, '项目简报已保存', true) }, '保存简报'),
                 h('small', { className: 'as-muted' }, briefDirty ? '有未保存的修改；后台刷新不会覆盖。' : '与主 Agent 共用同一份项目简报。'))) : null,
             tab === 'feedback' ? h('section', { className: 'as-form' },
               h('label', { htmlFor: 'as-feedback' }, '新增修改意见'),
@@ -470,8 +469,8 @@ window.__ModuleLoader__.load({
                 h('p', { className: 'as-muted' }, '展示宿主实际能识别的技能；项目扫描或配置引用只算未确认，不冒充宿主可用。未知技能名仍可自由填写，不会被硬拦。'),
                 renderSkillCatalog(project.skillCatalog)),
               h('div', { className: 'as-row', style: { marginTop: '14px', gap: '8px' } },
-                h(Button, { primary: true, disabled: busy, onClick: () => run('config', { config: toPayloadConfig(config) }, '配置已保存', false, false, true) }, '保存配置'),
-                h(Button, { disabled: busy, onClick: () => run('reset-config', {}, '配置已恢复默认', false, false, true) }, '恢复默认'),
+                h(Button, { primary: true, disabled: busy || !cliReady, onClick: () => run('config', { config: toPayloadConfig(config) }, '配置已保存', false, false, true) }, '保存配置'),
+                h(Button, { disabled: busy || !cliReady, onClick: () => run('reset-config', {}, '配置已恢复默认', false, false, true) }, '恢复默认'),
                 h('small', { className: 'as-muted' }, configDirty ? '配置有未保存修改；后台刷新不会覆盖。' : '派工与模型路由配置保存在项目内。'))) : null,
             draftText ? h('section', { className: 'as-form' }, h('label', { htmlFor: 'as-directive' }, '给主 Agent 的指令'), h('textarea', { id: 'as-directive', rows: 6, readOnly: true, value: cliReady ? draftText : '项目命令尚未升级或无法验证，请先处理后再准备指令。' }), h(Button, { disabled: !cliReady, onClick: copy }, '复制指令')) : null) : null),
         h('footer', { className: 'as-footer' }, h('small', { className: 'as-muted' }, '任务由 DSH 原生 Agent 执行。关闭工作台不停止任务。'), project?.initialized ? h(Button, { disabled: !cliReady, onClick: copy }, '复制继续指令') : null));

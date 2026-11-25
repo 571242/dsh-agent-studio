@@ -6,7 +6,7 @@
 ## 0.2.0 的核心：单对话指挥官 + 原生双轨委派
 
 - **主控零开发**：主对话只读写 `.studio/` 账本（`state.json`）与项目简报（`BRIEF.md`），不读改业务源码、不跑项目测试。
-- **原生双轨委派**：一次性清晰任务走宿主原生 `subagent`（单次执行，显式指定 `provider` + `model` 与 reasoning effort）；原因不明或多步的复杂模块走 Agent Teams 的 `spawn_teammate` + `send_message` 持续会话，单负责人闭环诊断、修复、定向回归。
+- **原生双轨委派**：一次性清晰任务走宿主原生 `subagent`（单次执行，显式指定 `provider` + `model` 与 reasoning effort）；原因不明或多步的复杂模块走持续会话轨（原生 `subagent` 创建具名负责人 + `send_message` 续接，继承父会话），单负责人闭环诊断、修复、定向回归。
 - **只审结构化回执**：子 Agent 完成后只返回 ≤15 行回执——`【改动文件清单 | 核心变更摘要(≤5行) | 实际执行的验证命令与退出码/通过数 | 契约变更说明 | 阻塞/问题】`，主控凭回执与独立验收结果收口，长日志不进主对话。
 - **三角色与默认模型路由**：`director`（main，指挥官）、`engineer`（subagent，含 coding/debug/visual 三条路由）、`reviewer`（subagent，独立验收）。默认路由写在 `state.json` 的 `config` 里，工作台可实时查看与修改。
 - **账本与简报**：`.studio/BRIEF.md` 是目标、版本范围与全局契约锚点；`.studio/state.json` 是任务、反馈、证据、配置与交接记录。主控每阶段演进或接口变更时同步 BRIEF 顶部锚点（≤80 行，只留结论）。
@@ -21,7 +21,7 @@
 - 工作台共四个标签页：**任务 / 项目简报 / 反馈与交接 / 角色与路由**。打开时定期刷新，关闭后不轮询。
 - 「交接并暂停」准备给主 Agent 的指令，由它处理实际 worker 后保存交接；关闭工作台本身不停止任务。
 
-安装：在 DSH 插件页安装 `link:ABSOLUTE_PATH_TO_AGENT_STUDIO` 并启用。使用桌面 CLI 时，`dsh plugin --profile desktop add "link:ABSOLUTE_PATH_TO_AGENT_STUDIO"` 只安装依赖，随后仍需启用 bundle。支持 profile HMR 的宿主可热加载；否则需要重启 DSH。
+安装：在 DSH 插件页安装 `link:F:/SPACE/agent-studio` 并启用。使用桌面 CLI 时，`dsh plugin --profile desktop add "link:F:/SPACE/agent-studio"` 只安装依赖，随后仍需启用 bundle。支持 profile HMR 的宿主可热加载；否则需要重启 DSH。
 
 插件与项目 CLI 共用项目内 `.studio`；已有项目首次使用此版本前必须先升级项目 CLI，步骤见下方。该插件是本地接入，不需要新端口、新服务或 npm 全局安装。支持 Node.js 20+；当前 DSH 桌面宿主要求以其自带运行时安装。
 
@@ -31,7 +31,8 @@
 - **项目简报**：编辑并与主 Agent 共用同一份 `BRIEF.md`，带 revision 冲突检查。
 - **反馈与交接**：登记新的修改意见，查看待处理反馈与最近交接记录。
 - **角色与路由**：查看并编辑 `engineer.routes.{coding,debug,visual}` 与 `reviewer` 的 `provider` / `model` / `reasoningEffort` / `skills`，调整 `fastTrackLowRisk` 开关与 `concurrency` 并发数；「保存配置」「恢复默认」分别调用服务端 `action config` / `reset-config`。
-- 后台自动刷新不会覆盖你正在编辑的任何输入（简报、路径、角色与路由配置草稿），切换项目前若有未保存配置会先确认。
+- 后台刷新不会覆盖正在编辑的输入。「打开」和「选择」遇到未保存简报、反馈或配置都会先确认；读取失败时保留草稿。
+- 旧项目 CLI 仍可查看进度，但保存简报、反馈或配置前需要先升级 CLI。重开任务会沿用上次选定的路由，实际模型仍以新一轮证据为准。
 
 ## 本地开始
 
@@ -88,7 +89,7 @@ node .studio/studio.mjs upgrade TARGET --confirm-stopped
 - **config [FILE.json]**：无参打印归一化后的当前配置；带文件则在跨进程锁内原子写回 `state.config`。`reset-config` 恢复内置默认（director / engineer 三路由 / reviewer）。各方向默认技能与选型评估见 [SKILLS.md](SKILLS.md)。
 - CLI 只管理状态；`dispatch` 生成任务包，主 Agent 调用宿主原生子 Agent 真正执行。同一项目由一个主 Agent 协调，文件范围重叠的任务串行处理。
 
-## 已有项目升级与并发写入（0.1.x → 0.2.0）
+## 已有项目升级与并发写入
 
 每个初始化项目保留一份独立 CLI，因此更新插件本身不会更新旧项目。升级前先停止该项目全部 CLI、旧版插件和所有会写账本的进程；确认不再有旧代码运行后，在 Agent Studio 安装目录执行：
 

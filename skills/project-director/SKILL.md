@@ -16,7 +16,7 @@ description: 开始、继续或长期跟进本地软件项目；用户只跟主 
 - 派工前先 `node .studio/studio.mjs config` 读取当前已保存配置；`dispatch` 输出的每个 packet 带 `config`、`execution` 与 `prompt`，主控严格按它们调用真实原生工具，不凭记忆虚构路由或技能。
 - `dispatch --limit N` 受 `config.concurrency` 硬上限约束（显式 --limit 只能收窄）。可用 `--task ID --route coding|debug|visual --mode subagent|teammate --role engineer|reviewer --model PROVIDER/MODEL --risk low|high` 覆盖。
 - `subagent`：按 `execution.requested` 显式传 `provider` / `model` / `reasoningEffort`。
-- `teammate`（`spawn_teammate` + `send_message`）：只传宿主支持的 `name/description/prompt/context`，继承父会话，**不传** provider/model/effort；传输 provider 不是 LLM provider。`execution.effective` 与 `execution.actual` 必须分清，`actual` 未拿到宿主真实证据前保持"未证实"，不得自称已确认模型。
+- `teammate`（原生 `subagent` + `send_message`）：只传宿主支持的 `name/description/prompt`（context 并入 prompt），继承父会话，**不传** provider/model/effort；传输 provider 不是 LLM provider。`execution.effective` 与 `execution.actual` 必须分清，`actual` 未拿到宿主真实证据前保持"未证实"，不得自称已确认模型。
 - 一次性清晰任务 → `subagent`；原因不明的 bug 或多步复杂模块 → `teammate` 持续会话：单负责人闭环诊断 → 修复 → 定向回归，不机械拆成多角色。
 - 子 Agent 只改 scope 内文件；不改 `.studio/`、`.agents/`、`.claude/`、`AGENTS.md`、`CLAUDE.md`。scope 是协作约定不是沙箱，冲突任务串行，扩展范围先回报。
 

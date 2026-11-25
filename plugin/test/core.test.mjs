@@ -378,7 +378,11 @@ test('旧项目的插件写入拒绝但只读与定制脚本保留', async t => 
   const legacy = await readFile(new URL('../../tests/fixtures/studio-0.1.0.mjs', import.meta.url));
   await writeFile(file, legacy);
   const before = await readFile(path.join(root, '.studio/state.json'), 'utf8');
-  assert.equal((await action('load')).cliCompatibility, 'legacy');
+  const snapshot = await action('load');
+  assert.equal(snapshot.cliCompatibility, 'legacy');
+  for (const [name, payload] of [['config', {config: {}}], ['reset-config', {}], ['brief', {brief: '改写', revision: snapshot.revision}]]) {
+    await rejects(() => action(name, payload), 409, 'CLI_INCOMPATIBLE');
+  }
   await rejects(() => action('feedback', { text: '拒绝混用' }), 422, 'CLI_FAILED');
   assert.equal(await readFile(path.join(root, '.studio/state.json'), 'utf8'), before);
   assert.deepEqual(await readFile(file), legacy);
